@@ -6,7 +6,7 @@ using CUDA
 CUDA.allowscalar(false)
 
 # --- params ---
-L      = 10
+L      = 15
 rho      = 0.5                      # half filling like the paper
 N      = Int(round(rho*2L))         # total bosons
 
@@ -105,8 +105,8 @@ psi0 = MPS(sites, half_filled_state())
 nsweeps = 1
 sweeps  = Sweeps(nsweeps)
 setmaxdim!(sweeps, 1500)
-# setmindim!(sweeps,  500)
-setcutoff!(sweeps, 1e-5)
+setmindim!(sweeps,  500)
+setcutoff!(sweeps, 1e-6)
 
 chis = range(0, stop=π, length=20)
 rows = Vector{NamedTuple}()
