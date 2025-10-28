@@ -1,0 +1,37 @@
+@'
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+*.code-workspace
+
+# Julia (keep Project/Manifest for reproducibility)
+.julia/
+*.ji
+*.dSYM/
+*.dll
+*.dylib
+*.so
+
+# Caches / temp
+/tmp/
+*.log
+
+# Notebooks autosave
+.ipynb_checkpoints/
+
+# Large raw data (optional; consider Git LFS)
+*.h5
+*.fsp
+*.fsx
+*.npz
+*.npy
+*.mat
+
+# Plot artifacts (uncomment if you don’t want to track them)
+# *.png
+# *.pdf
+
+# CSV outputs (optional — if you don’t want to commit results)
+# *.csv
+'@ | Set-Content -Encoding UTF8 .gitignore
