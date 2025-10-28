@@ -111,46 +111,54 @@ setcutoff!(sweeps, 1e-6)
 chis = range(0, stop=π, length=20)
 rows = Vector{NamedTuple}()
 
+# current on a single link (rung p<->q), returned as a GPU MPO
 function link_current_os(p, q, sites; J, phi=0.0)
     os = OpSum()
-    os += -1im*J*exp( 1im*phi), "Adag", p, "A", q
-    os += +1im*J*exp(-1im*phi), "Adag", q, "A", p
-    return cu(MPO(os, sites))   # return GPU MPO
+    os += -1im*J*exp( +1im*phi), "Adag", p, "A", q
+    os += +1im*J*exp( -1im*phi), "Adag", q, "A", p
+    return cu(MPO(os, sites))
 end
 
-# Build MPO for J_1 * J_j as a single 4-term OpSum (then move to GPU)
+# MPO for the product J_1 * J_j written explicitly as 4 terms
 function rung_pair_JJ_mpo(j, sites; J, phi1=0.0, phi2=0.0)
     p, q = site_index(1,1), site_index(1,2)    # first rung
     r, s = site_index(j,1), site_index(j,2)    # j-th rung
 
     os = OpSum()
-    # (-1) e^{i(φ1+φ2)} a†_p a_q a†_r a_s
-    os += -exp(1im*(phi1+phi2))*J^2, "Adag", p, "A", q, "Adag", r, "A", s
-    # (+1) e^{i(φ1-φ2)} a†_p a_q a†_s a_r
-    os += +exp(1im*(phi1-phi2))*J^2, "Adag", p, "A", q, "Adag", s, "A", r
-    # (+1) e^{i(-φ1+φ2)} a†_q a_p a†_r a_s
-    os += +exp(1im*(-phi1+phi2))*J^2, "Adag", q, "A", p, "Adag", r, "A", s
-    # (-1) e^{-i(φ1+φ2)} a†_q a_p a†_s a_r
-    os += -exp(-1im*(phi1+phi2))*J^2, "Adag", q, "A", p, "Adag", s, "A", r
+    # (-) e^{ i(φ1+φ2)} a†_p a_q a†_r a_s
+    os += -J^2 * exp(1im*(phi1+phi2)),  "Adag", p, "A", q, "Adag", r, "A", s
+    # (+) e^{ i(φ1-φ2)} a†_p a_q a†_s a_r
+    os += +J^2 * exp(1im*(phi1-phi2)),  "Adag", p, "A", q, "Adag", s, "A", r
+    # (+) e^{ i(-φ1+φ2)} a†_q a_p a†_r a_s
+    os += +J^2 * exp(1im*(-phi1+phi2)), "Adag", q, "A", p, "Adag", r, "A", s
+    # (-) e^{-i(φ1+φ2)} a†_q a_p a†_s a_r
+    os += -J^2 * exp(-1im*(phi1+phi2)), "Adag", q, "A", p, "Adag", s, "A", r
 
     return cu(MPO(os, sites))
 end
 
+# Connected correlator { <J1 Jj> - <J1><Jj> } for all j>1
 function connected_rung_correlator_first(psi, sites; J, phi1=0.0, phi2=0.0)
     Lr = length(sites) ÷ 2
 
+    # <J_1>
     A1 = link_current_os(site_index(1,1), site_index(1,2), sites; J=J, phi=phi1)
     J1 = inner(psi', A1, psi)
 
-    C = ComplexF64[]   # ← change from NamedTuple[] to ComplexF64[]
-    for j in 1:Lr
+    C = Float64[]                    # store real connected values
+    for j in 2:Lr                    # <-- skip self term j=1
+        # <J_j>
         Aj  = link_current_os(site_index(j,1), site_index(j,2), sites; J=J, phi=phi2)
         Jj  = inner(psi', Aj,  psi)
+
+        # <J_1 J_j> (explicit 4-term product)
         JJ  = inner(psi', rung_pair_JJ_mpo(j, sites; J=J, phi1=phi1, phi2=phi2), psi)
-        push!(C, ComplexF64(JJ - J1*Jj))  # promote to ComplexF64 if GPU returns ComplexF32
+
+        push!(C, real(JJ - J1*Jj))   # connected correlator, take real part
     end
     return C
 end
+
 
 function half_filled_mps(sites, N)
     state = fill("0", length(sites))
