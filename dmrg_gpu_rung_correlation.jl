@@ -6,7 +6,7 @@ using CUDA
 CUDA.allowscalar(false)
 
 # --- params ---
-L      = 15
+L      = 20
 rho      = 0.5                      # half filling like the paper
 N      = Int(round(rho*2L))         # total bosons
 
@@ -102,15 +102,16 @@ end
 
 psi0 = MPS(sites, half_filled_state())
 
-nsweeps = 1
+nsweeps = 4
 sweeps  = Sweeps(nsweeps)
-setmaxdim!(sweeps, 1500)
-setmindim!(sweeps,  500)
+setmaxdim!(sweeps, 1000, 1500, 2000)
+setmindim!(sweeps,  500, 800, 1000)
 setcutoff!(sweeps, 1e-6)
 
 chis = range(0, stop=π, length=20)
 rows = Vector{NamedTuple}()
 
+# current on a single link (rung p<->q), returned as a GPU MPO
 # current on a single link (rung p<->q), returned as a GPU MPO
 function link_current_os(p, q, sites; J, phi=0.0)
     os = OpSum()
