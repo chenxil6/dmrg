@@ -6,7 +6,7 @@ using CUDA
 CUDA.allowscalar(false)
 
 # --- params ---
-L      = 10
+L      = 20
 rho      = 0.5                      # half filling like the paper
 N      = Int(round(rho*2L))         # total bosons
 
@@ -102,9 +102,9 @@ end
 
 psi0 = MPS(sites, half_filled_state())
 
-nsweeps = 1
+nsweeps = 2
 sweeps  = Sweeps(nsweeps)
-setmaxdim!(sweeps, 1500)
+setmaxdim!(sweeps, 1200, 1500)
 # setmindim!(sweeps,  500)
 setcutoff!(sweeps, 1e-5)
 
@@ -181,7 +181,12 @@ function run_scan(sites, chis; J, Jpar, U, sweeps, psi0)
             C  = connected_rung_correlator_first(psi_ws, sites; J=J)
             Lr = length(sites) ÷ 2
             CSV.write("rung_corr_chi_pi.csv",
-                      DataFrame(rung=1:Lr, Cre=real.(C), Cim=imag.(C), Cabs=abs.(C)))
+
+			DataFrame(rung=1:length(C),
+				Cre=real.(C),
+				Cim=imag.(C),
+			        Cabs=abs.(C))
+		)
         end
 
         push!(rows, (
