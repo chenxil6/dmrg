@@ -115,10 +115,10 @@ function matt_hamiltonian(sites, lattice, psi_0; N, J_perp, J_parallel, U, phase
     H = MPO(os, sites)
     state  = [isodd(n) ? "0" : "1" for n in 1:N]
     nsweeps = 10
-    maxdim = [100, 200, 400, 800, 1600]
-    # mindim = [50,100,200,400,800]
+    maxdim = [1600]
+    mindim = [1500]
     cutoff = [1E-6]
-    noise = [1E-6, 1E-7, 1E-8, 0.0]
+    noise = [1E-6]
     # psi_ws = random_mps(sites, state)
     energy, psi_0 = dmrg(H, psi_0; nsweeps, maxdim, cutoff, noise)
     return energy, psi_0
