@@ -120,7 +120,7 @@ function matt_hamiltonian(sites, lattice, psi_0; N, J_perp, J_parallel, U, phase
     cutoff = [1E-6]
     noise = [1E-6]
     # psi_ws = random_mps(sites, state)
-    energy, psi_0 = dmrg(H, psi_0; nsweeps, maxdim, cutoff, noise)
+    energy, psi_0 = dmrg(H, psi_0; nsweeps, mindim, maxdim, cutoff, noise)
     return energy, psi_0
 end
 
