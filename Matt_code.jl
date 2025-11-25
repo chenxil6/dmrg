@@ -199,7 +199,7 @@ J_parallel = -0.1
 J_perp = -1
 phase = 1 * Base.MathConstants.pi
 U = 25
-J_para_list = range(0, 1, length=11)
+J_para_list = range(0, 1, length=3)
 lattice = create_lattice(L)
 for J_parallel in J_para_list
     energy, psi = compute_ground_state(lattice, L, num_levels, J_perp, J_parallel, U, phase)

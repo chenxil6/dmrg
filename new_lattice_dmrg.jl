@@ -116,7 +116,7 @@ function matt_hamiltonian(sites, lattice, psi_0; N, J_perp, J_parallel, U, phase
     state  = [isodd(n) ? "0" : "1" for n in 1:N]
     nsweeps = 10
     maxdim = [1600]
-    mindim = [1500]
+    mindim = [500]
     cutoff = [1E-6]
     noise = [1E-6]
     # psi_ws = random_mps(sites, state)
@@ -242,46 +242,50 @@ end
 # Chiral & average rung currents (interleaved convention)
 # ──────────────────────────────────────────────────────────────────────────────
 function compute_total_chiral_current(psi, lattice, L, J_parallel, phase)
-    sites = siteinds(psi)
 
-    os_total = OpSum()
-    for j in 1:(L-1)
-        i,  ip1  = site_index(j,1),   site_index(j+1,1)   # top leg bond j→j+1
-        k,  kp1  = site_index(j,2),   site_index(j+1,2)   # bottom leg bond j→j+1
-
-        # + j_{j,1}^∥  (top leg)
-        os_total += -1im*J_parallel*exp(-1im*phase), "adag", i,   "a", ip1
-        os_total += +1im*J_parallel*exp(+1im*phase), "adag", ip1, "a", i
-
-        # - j_{j,2}^∥  (bottom leg)
-        os_total += +1im*J_parallel*exp(+1im*phase), "adag", k,   "a", kp1
-        os_total += -1im*J_parallel*exp(-1im*phase), "adag", kp1, "a", k
+    
+    operator_sum = OpSum()
+    for b in lattice
+        
+        if iseven(b.s2 - b.s1)
+            multiplier = 1
+            if iseven(b.s1)
+                multiplier = -1
+            end
+            coupling = -J_parallel*exp(complex(0,-multiplier*phase))
+            
+            operator_sum += im*multiplier*coupling, "adag", b.s1, "a", b.s2
+            operator_sum -= im*multiplier*conj(coupling), "a", b.s1, "adag", b.s2
+        end
     end
 
-    a = MPO(os_total, sites)
-    val = inner(psi', a, psi)            # generally complex; small Im part expected
-    return val / (2*(L-1))               # average over leg bonds, same normalization
+    operator_sum /= 2(L-1)
+
+    operator = MPO(operator_sum, siteinds(psi))
+    return real(inner(psi, operator, psi))
 end
 
-function compute_average_rung_current(psi_gpu, sites; J)
-    acc = 0.0
-    # vertical rungs
-    for j in 1:L
-        a, b = site_index(j,1), site_index(j,2)
-        os = OpSum()
-        os += -J, "Adag", a, "A", b
-        os += +J, "Adag", b, "A", a
-        acc += abs(inner(psi_gpu', MPO(os, sites), psi_gpu))
+function compute_average_rung_current_signed(psi, lattice, L, J_perp)
+
+    operator_sum = OpSum()
+    for b in lattice
+        
+        if iseven(b.s2 - b.s1)
+            multiplier = 1
+            if iseven(b.s1)
+                multiplier = -1
+            end
+            coupling = multiplier * J_perp
+            
+            operator_sum += -im*coupling, "adag", b.s1, "a", b.s2
+            operator_sum -= -im*conj(coupling), "a", b.s1, "adag", b.s2
+        end
     end
-    # diagonals
-    for j in 1:(L-1)
-        a2, b = site_index(j+1,1), site_index(j,2)
-        os = OpSum()
-        os += -J, "Adag", a2, "A", b
-        os += +J, "Adag", b,  "A", a2
-        acc += abs(inner(psi_gpu', MPO(os, sites), psi_gpu))
-    end
-    return
+
+    operator_sum
+
+    operator = MPO(operator_sum, siteinds(psi))
+    return real(inner(psi, operator, psi))/(2(L-1))
 end
 # ──────────────────────────────────────────────────────────────────────────────
 # Sweeps & run_scan (kept coherent with the helpers above)
@@ -323,9 +327,9 @@ function run_scan(lattice::Vector{LatticeBond},
     
 
     rows = NamedTuple[]
-    psi_0 = random_mps(sites, state)
+    
     for χ in chis
-        
+        psi_0 = random_mps(sites, state)
         # 1) Build H from the correct lattice (interleaved sites)
         # H = build_H_from_lattice(sites, lattice; J_perp=J_perp, Jpar=J_parallel, U=U, phase=χ)
         energy, psi_ws = matt_hamiltonian(sites, lattice, psi_0; N, J_perp=J_perp, J_parallel = J_parallel, U=U, phase=χ)
@@ -335,7 +339,7 @@ function run_scan(lattice::Vector{LatticeBond},
 
         # 3) Measurements
         Jc = compute_total_chiral_current(psi_ws, lattice, L, J_parallel, χ)
-        Jr = compute_average_rung_current(psi_ws, sites; J = J_perp)
+        Jr = compute_average_rung_current(psi_ws, Lattice, L, J_perp)
 
         # 4) Optional: rung current correlator at χ ≈ π
         if isapprox(χ, Base.MathConstants.pi; atol=1e-8)
@@ -367,13 +371,13 @@ end
 # ──────────────────────────────────────────────────────────────────────────────
 # Example main (keep your own parameter values as before)
 # ──────────────────────────────────────────────────────────────────────────────
-L = 5
+L = 15
 num_levels = 4
 J_perp = -1
 J_parallel = -0.5
 J_ratio = J_parallel/J_perp
 U = 25
-N=2*L
+N= 2*L
 
 lattice = create_lattice(L)
 chis    = range(0, stop=Base.MathConstants.pi, length=11)

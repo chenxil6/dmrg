@@ -71,16 +71,16 @@ function avg_rung_current_gpu(psi_gpu, sites; J)
     for j in 1:L
         a, b = site_index(j,1), site_index(j,2)
         os = OpSum()
-        os += -J, "Adag", a, "A", b
-        os += +J, "Adag", b, "A", a
+        os += -1im * J, "Adag", a, "A", b
+        os += +1im * J, "Adag", b, "A", a
         acc += abs(inner(psi_gpu', MPO(os, sites), psi_gpu))
     end
     # diagonals
     for j in 1:(L-1)
         a2, b = site_index(j+1,1), site_index(j,2)
         os = OpSum()
-        os += -J, "Adag", a2, "A", b
-        os += +J, "Adag", b,  "A", a2
+        os += -1im * J, "Adag", a2, "A", b
+        os += +1im * J, "Adag", b,  "A", a2
         acc += abs(inner(psi_gpu', MPO(os, sites), psi_gpu))
     end
     return acc/(2L - 1)
