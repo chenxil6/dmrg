@@ -5,6 +5,9 @@ using CSV, DataFrames
 using CUDA
 CUDA.allowscalar(false)
 
+using LinearAlgebra
+BLAS.set_num_threads(1)
+
 # ──────────────────────────────────────────────────────────────────────────────
 # Interleaved indexing & lattice (matches the "correct" code)
 # ──────────────────────────────────────────────────────────────────────────────
