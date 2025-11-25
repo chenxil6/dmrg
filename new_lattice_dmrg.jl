@@ -263,7 +263,7 @@ function compute_total_chiral_current(psi, lattice, L, J_parallel, phase)
     return val / (2*(L-1))               # average over leg bonds, same normalization
 end
 
-function avg_rung_current_gpu(psi_gpu, sites; J)
+function compute_average_rung_current(psi_gpu, sites; J)
     acc = 0.0
     # vertical rungs
     for j in 1:L
