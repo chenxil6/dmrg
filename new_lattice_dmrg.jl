@@ -367,8 +367,8 @@ end
 # ──────────────────────────────────────────────────────────────────────────────
 # Example main (keep your own parameter values as before)
 # ──────────────────────────────────────────────────────────────────────────────
-L = 16
-num_levels = 4
+L = 60
+num_levels = 5
 J_perp = -1
 J_parallel = -0.5
 J_ratio = J_parallel/J_perp
