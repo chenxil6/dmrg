@@ -262,30 +262,39 @@ function compute_total_chiral_current(psi, lattice, L, J_parallel, phase)
     operator_sum /= 2(L-1)
 
     operator = MPO(operator_sum, siteinds(psi))
-    return real(inner(psi, operator, psi))
+    return real(inner(psi', operator, psi))
 end
 
-function compute_average_rung_current_signed(psi, lattice, L, J_perp)
+function compute_average_rung_current(psi, lattice, L, J_perp)
+    total = 0.0
+    sites = siteinds(psi)
 
-    operator_sum = OpSum()
     for b in lattice
-        
-        if iseven(b.s2 - b.s1)
+        # Identify rung bonds where s2 - s1 is odd
+        if isodd(b.s2 - b.s1)
+
+            # Construct the current operator for this bond
+            operator_sum = OpSum()
+
             multiplier = 1
             if iseven(b.s1)
                 multiplier = -1
             end
-            coupling = multiplier * J_perp
             
-            operator_sum += -im*coupling, "adag", b.s1, "a", b.s2
-            operator_sum -= -im*conj(coupling), "a", b.s1, "adag", b.s2
+            # i switched adag and a here by accident and now things are weird so check results again
+            operator_sum += -im*multiplier*J_perp, "adag", b.s1, "a", b.s2
+            operator_sum -= -im*multiplier*conj(J_perp), "a", b.s1, "adag", b.s2
+
+            # Convert the OpSum to an MPO using the same site indices as psi
+            operator = MPO(operator_sum, sites)
+
+            # Compute the expectation value and accumulate its absolute value
+
+            total += abs(real(inner(psi', operator, psi)))
         end
     end
 
-    operator_sum
-
-    operator = MPO(operator_sum, siteinds(psi))
-    return real(inner(psi, operator, psi))/(2(L-1))
+    return total/(2(L-1))
 end
 # ──────────────────────────────────────────────────────────────────────────────
 # Sweeps & run_scan (kept coherent with the helpers above)
@@ -339,7 +348,7 @@ function run_scan(lattice::Vector{LatticeBond},
 
         # 3) Measurements
         Jc = compute_total_chiral_current(psi_ws, lattice, L, J_parallel, χ)
-        Jr = compute_average_rung_current(psi_ws, Lattice, L, J_perp)
+        Jr = compute_average_rung_current(psi, lattice, L, J_perp)
 
         # 4) Optional: rung current correlator at χ ≈ π
         if isapprox(χ, Base.MathConstants.pi; atol=1e-8)
