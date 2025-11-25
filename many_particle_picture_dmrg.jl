@@ -15,7 +15,7 @@ J, Jpar, U = 1.0, 0.5, 20        # match paper examples
 J_ratio = Jpar/J;
 sites  = siteinds("Boson", 2*L; dim=Nmax+1, conserve_qns=true)
 
-nsweeps = 5
+nsweeps = 30
 sweeps  = Sweeps(nsweeps)
 
 setmaxdim!(sweeps, 1000)
