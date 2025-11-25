@@ -288,10 +288,10 @@ end
 # ──────────────────────────────────────────────────────────────────────────────
 function default_sweeps()
     sw = Sweeps(10)
-    setmaxdim!(sw, 1800)
-    setmindim!(sw, 1500)
+    setmaxdim!(sw, 800)
+    setmindim!(sw, 500)
     setcutoff!(sw, 1e-12)
-    setnoise!(sw, 1e-7)
+    setnoise!(sw, 1e-6)
     return sw
 end
 
@@ -352,12 +352,12 @@ function run_scan(lattice::Vector{LatticeBond},
         end
 
         push!(rows, (
-            chi    = Float64(χ),
-            energy = Float64(real(energy)),
-            Jc_re  = Float64(real(Jc)),
-            Jc_im  = Float64(imag(Jc)),
-            Jc_abs = Float64(abs(Jc)),
-            Jr     = Float64(Jr),
+            chi    = χ,
+            energy = real(energy),
+            Jc_re  = real(Jc),
+            Jc_im  = imag(Jc),
+            Jc_abs = abs(Jc),
+            Jr     = Jr,
         ))
     end
 

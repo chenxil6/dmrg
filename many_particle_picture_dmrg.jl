@@ -10,7 +10,7 @@ L      = 30
 rho      = 0.5                      # half filling like the paper
 N      = Int(round(rho*2L))         # total bosons
 
-Nmax   = 5                        # paper used ≥4–5
+Nmax   = 3                        # paper used ≥4–5
 J, Jpar, U = 1.0, 0.5, 20        # match paper examples
 J_ratio = Jpar/J;
 sites  = siteinds("Boson", 2*L; dim=Nmax+1, conserve_qns=true)
@@ -19,7 +19,7 @@ nsweeps = 10
 sweeps  = Sweeps(nsweeps)
 
 setmaxdim!(sweeps, 1000)
-setmindim!(sweeps, 500)
+# setmindim!(sweeps, 500)
 setcutoff!(sweeps, 1e-12)
 setnoise!(sweeps,  1e-6) # <- crucial for growth
 # nsweeps = 12
