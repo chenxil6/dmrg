@@ -335,7 +335,7 @@ function run_scan(lattice::Vector{LatticeBond},
 
         # 3) Measurements
         Jc = compute_total_chiral_current(psi_ws, lattice, L, J_parallel, χ)
-        Jr = compute_average_rung_current(psi_ws, sites; J_perp)
+        Jr = compute_average_rung_current(psi_ws, sites; J = J_perp)
 
         # 4) Optional: rung current correlator at χ ≈ π
         if isapprox(χ, Base.MathConstants.pi; atol=1e-8)
