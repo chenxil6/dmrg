@@ -6,12 +6,12 @@ using CUDA
 CUDA.allowscalar(false)
 
 # --- params ---
-L      = 30
+L      = 25
 rho      = 0.5                      # half filling like the paper
 N      = Int(round(rho*2L))         # total bosons
 
 Nmax   = 3                        # paper used ≥4–5
-J, Jpar, U = 1.0, 0.5, 20        # match paper examples
+J, Jpar, U = 1.0, 0.5, 25        # match paper examples
 J_ratio = Jpar/J;
 sites  = siteinds("Boson", 2*L; dim=Nmax+1, conserve_qns=true)
 

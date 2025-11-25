@@ -352,12 +352,12 @@ function run_scan(lattice::Vector{LatticeBond},
         end
 
         push!(rows, (
-            chi    = χ,
-            energy = real(energy),
-            Jc_re  = real(Jc),
-            Jc_im  = imag(Jc),
-            Jc_abs = abs(Jc),
-            Jr     = Jr,
+            chi    = Float64(χ),
+            energy = Float64(real(energy)),
+            Jc_re  = Float64(real(Jc)),
+            Jc_im  = Float64(imag(Jc)),
+            Jc_abs = Float64(abs(Jc)),
+            Jr     = Float64(Jr),
         ))
     end
 
@@ -368,7 +368,7 @@ end
 # Example main (keep your own parameter values as before)
 # ──────────────────────────────────────────────────────────────────────────────
 L = 5
-num_levels = 5
+num_levels = 4
 J_perp = -1
 J_parallel = -0.5
 J_ratio = J_parallel/J_perp
