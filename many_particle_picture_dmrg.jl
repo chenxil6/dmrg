@@ -6,19 +6,19 @@ using CUDA
 CUDA.allowscalar(false)
 
 # --- params ---
-L      = 25
+L      = 10
 rho      = 0.5                      # half filling like the paper
 N      = Int(round(rho*2L))         # total bosons
 
 Nmax   = 3                        # paper used ≥4–5
-J, Jpar, U = 1.0, 0.5, 25        # match paper examples
+J, Jpar, U = 1.0, 1, 25        # match paper examples
 J_ratio = Jpar/J;
 sites  = siteinds("Boson", 2*L; dim=Nmax+1, conserve_qns=true)
 
 nsweeps = 10
 sweeps  = Sweeps(nsweeps)
 
-setmaxdim!(sweeps, 1000)
+setmaxdim!(sweeps, 500)
 # setmindim!(sweeps, 500)
 setcutoff!(sweeps, 1e-12)
 setnoise!(sweeps,  1e-6) # <- crucial for growth
