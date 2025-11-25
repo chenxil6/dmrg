@@ -288,10 +288,10 @@ end
 # ──────────────────────────────────────────────────────────────────────────────
 function default_sweeps()
     sw = Sweeps(10)
-    setmaxdim!(sw, 800)
-    setmindim!(sw, 500)
+    setmaxdim!(sw, 1800)
+    setmindim!(sw, 1500)
     setcutoff!(sw, 1e-12)
-    setnoise!(sw, 1e-6)
+    setnoise!(sw, 1e-7)
     return sw
 end
 
