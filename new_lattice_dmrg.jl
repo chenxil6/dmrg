@@ -33,17 +33,17 @@ function create_lattice(L)
 
     # Define lattice
     lattice = Vector{LatticeBond}()
-    println("N:", N)
-    println(lattice)
+    # println("N:", N)
+    # println(lattice)
     for i in 1:N
-        println(i)
+        # println(i)
         if i <= N - 2
             lattice = push!(lattice, LatticeBond(i, i + 2))
         end
         if i <= N - 1
             lattice = push!(lattice, LatticeBond(i, i + 1))
         end
-        println(lattice)
+        # println(lattice)
     end
     return lattice
 
