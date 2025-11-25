@@ -6,7 +6,7 @@ using CUDA
 CUDA.allowscalar(false)
 
 # --- params ---
-L      = 5
+L      = 4
 rho      = 0.5                      # half filling like the paper
 N      = Int(round(rho*2L))         # total bosons
 
@@ -102,163 +102,72 @@ end
 
 psi0 = MPS(sites, half_filled_state())
 
-nsweeps = 1
+nsweeps = 10
 sweeps  = Sweeps(nsweeps)
-setmaxdim!(sweeps, 800)
+setmaxdim!(sweeps, 500)
 # setmindim!(sweeps,  200)
-setcutoff!(sweeps, 1e-6)
+setcutoff!(sweeps, 1e-10)
 
-chis = range(0, stop=π, length=20)
+chis = range(0, stop=π, length=10)
 rows = Vector{NamedTuple}()
 
-"""
-    bond_coupling(s1, s2; J_perp, J_parallel, phase)
-
-Implements your "correct code" rule:
-- multiplier = (-1) if s1 is even, else (+1)
-- If (s2 - s1) is even => treat as a leg bond:  coupling = -J_parallel * exp(-i*multiplier*phase)
-- Else                 => treat as a rung/diagonal: coupling = multiplier * J_perp
-
-NOTE: With site_index(j,m)=(m-1)L + j and L=5 (odd):
-  - Rungs have (s2-s1)=L (odd)  -> "rung/diag" branch
-  - Legs  have (s2-s1)=±1 (even)-> "leg" branch
-If you switch to even L, this parity test will flip for rungs; adjust as needed.
-"""
-function bond_coupling(s1::Int, s2::Int; J_perp, J_parallel, phase)
-    mult = iseven(s1) ? -1 : 1
-    if iseven(s2 - s1)
-        # leg bond
-        return -J_parallel * exp(-1im * mult * phase)
-    else
-        # rung/diagonal bond
-        return mult * J_perp
-    end
-end
-
-"""
-    single_bond_current_mpo(s1, s2, sites; coupling, to_cuda=false)
-
-Defines J_(s1,s2) so that J_b1 * J_b2 expands to the 4 terms with coefficients:
-  - c1*c2, + c1*conj(c2), + conj(c1)*c2, - conj(c1)*conj(c2)
-which is exactly your "correct code" pattern.
-"""
-function single_bond_current_mpo(s1::Int, s2::Int, sites; coupling, to_cuda::Bool=false)
+function link_current_os(p, q, sites; J, phi=0.0)
     os = OpSum()
-    # J_b = (-c) a†_s1 a_s2  +  (conj(c)) a†_s2 a_s1
-    os += -coupling,       "Adag", s1, "A", s2
-    os +=  conj(coupling), "Adag", s2, "A", s1
-    mpo = MPO(os, sites)
-    return to_cuda ? cu(mpo) : mpo
+    os += -1im*J*exp( +1im*phi), "Adag", p, "A", q
+    os += +1im*J*exp( -1im*phi), "A", p, "Adag", q
+    return cu(MPO(os, sites))
 end
 
-"""
-    bond_pair_JJ_mpo(b1, b2, sites; c1, c2, to_cuda=false)
-
-Explicit 4-term MPO for J_(b1) * J_(b2), with the same coefficients and conjugations
-as your "correct code". Bonds are NamedTuples like (; s1=Int, s2=Int).
-"""
-function bond_pair_JJ_mpo(b1, b2, sites; c1, c2, to_cuda::Bool=false)
-    i, j = b1.s1, b1.s2
-    k, l = b2.s1, b2.s2
-
+# MPO for the product J_1 * J_j written explicitly as 4 terms
+    # --- small helper: JJ MPO for arbitrary bonds (p,q) and (r,s)
+function bond_pair_JJ_mpo_local(p,q,r,s; phi1=0,phi2=0)
     os = OpSum()
-    # (-) c1*c2            a†_i a_j a†_k a_l
-    os += -(c1*c2),                "Adag", i, "A", j, "Adag", k, "A", l
-    # (+) c1*conj(c2)      a†_i a_j a†_l a_k
-    os += +(c1*conj(c2)),          "Adag", i, "A", j, "Adag", l, "A", k
-    # (+) conj(c1)*c2      a†_j a_i a†_k a_l
-    os += +(conj(c1)*c2),          "Adag", j, "A", i, "Adag", k, "A", l
-    # (-) conj(c1)*conj(c2) a†_j a_i a†_l a_k
-    os += -(conj(c1)*conj(c2)),    "Adag", j, "A", i, "Adag", l, "A", k
-
-    mpo = MPO(os, sites)
-    return to_cuda ? cu(mpo) : mpo
+    # (-) e^{ i(φ+φ)} a†_p a_q a†_r a_s
+    os += -J^2 * exp(1im*(phi1+phi2)),  "Adag", p, "A", q, "Adag", r, "A", s
+    # (+) e^{ i(φ-φ)} a†_p a_q a†_s a_r
+    os += +J^2 * exp(1im*(phi1-phi2)),  "Adag", p, "A", q, "A", r, "Adag", s
+    # (+) e^{ i(-φ+φ)} a†_q a_p a†_r a_s
+    os += +J^2 * exp(1im*(-phi1+phi2)), "A", p, "Adag", q, "Adag", r, "A", s
+    # (-) e^{-i(φ+φ)} a†_q a_p a†_s a_r
+    os += -J^2 * exp(-1im*(phi1+phi2)), "A", p, "Adag", q, "A", r, "Adag", s
+    return cu(MPO(os, sites))
 end
 
-"""
-    build_lattice_bonds()
+# Connected correlator { <J1 J_b> - <J1><J_b> } including self and diagonals.
+# Order: [ self, rung(2), diag(1↔2), rung(3), diag(2↔3), …, rung(L), diag(L-1↔L) ]
+function connected_rung_correlator_first(psi, sites; J, phi1=0.0, phi2=0.0)
+    Lr = length(sites) ÷ 2
+    # --- J on first rung (1,1)↔(1,2)
+    p1, q1 = site_index(1,1), site_index(1,2)
+    A1 = link_current_os(p1, q1, sites; J=J, phi=0)
+    J1 = inner(psi', A1, psi)
 
-Collect ALL bonds used by your Hamiltonian (legs, rungs, diagonals) as
-NamedTuples (; s1, s2) with s1 < s2 to keep them canonical.
-"""
-function build_lattice_bonds()
-    bonds = NamedTuple{(:s1,:s2),Tuple{Int,Int}}[]
+    C = Float64[]
 
-    # Legs (with direction j -> j+1 on each leg)
-    for j in 1:L-1
-        i1,i2 = site_index(j,1), site_index(j+1,1)
-        k1,k2 = site_index(j,2), site_index(j+1,2)
-        push!(bonds, (s1=min(i1,i2), s2=max(i1,i2)))
-        push!(bonds, (s1=min(k1,k2), s2=max(k1,k2)))
-    end
+    # 1) self: C11 = <J1^2> - <J1>^2
+    JJ11 = inner(psi', bond_pair_JJ_mpo_local(p1,q1,p1,q1;phi1,phi2), psi)
+    push!(C, real(JJ11 - J1*J1))
 
-    # Rungs
-    for j in 1:L
-        a,b = site_index(j,1), site_index(j,2)
-        push!(bonds, (s1=min(a,b), s2=max(a,b)))
-    end
-
-    # Diagonals
-    for j in 1:L-1
-        a,b = site_index(j+1,1), site_index(j,2)
-        push!(bonds, (s1=min(a,b), s2=max(a,b)))
-    end
-
-    # Make unique
-    unique!(bonds)
-    return bonds
-end
-
-"""
-    connected_current_correlators(psi, lattice, sites;
-        J_perp, J_parallel, phase, q1::Int=0, q2::Int=0, to_cuda::Bool=true)
-
-Compute connected ⟨J_b1 J_b2⟩ - ⟨J_b1⟩⟨J_b2⟩ over all pairs in `lattice`
-with your correct-code rules:
-  - Optional filter on the *first* bond: if q1,q2≠0 require (b1.s1==q1 && b1.s2==q2)
-  - Skip any pair that shares a site
-  - Only keep ordered pairs with b2.s1 ≥ b1.s1 (prevents double counting)
-Returns a vector of NamedTuples (b1_s1,b1_s2,b2_s1,b2_s2,value).
-"""
-function connected_current_correlators(psi, lattice, sites;
-        J_perp, J_parallel, phase, q1::Int=0, q2::Int=0, to_cuda::Bool=true)
-
-    out = NamedTuple{(:b1_s1,:b1_s2,:b2_s1,:b2_s2,:value),
-                     Tuple{Int,Int,Int,Int,Float64}}[]
-
-    for b1 in lattice
-        # Optional (q1,q2) filter on the first bond
-        if (q1 != 0 && q1 != b1.s1) || (q2 != 0 && q2 != b1.s2)
+    # 2) alternate rung(n) and diag(j) moving outwards
+    for n in 1:Lr
+        if n == 1
             continue
+        else
+            pd, qd = site_index(n,1), site_index(n-1,2)
+            Ad = link_current_os(pd, qd, sites; J=J, phi=0)
+            Jd = inner(psi', Ad, psi)
+            JJd = inner(psi', bond_pair_JJ_mpo_local(p1,q1,pd,qd;phi1,phi2), psi)
+            push!(C, real(JJd - J1*Jd))
         end
+        # rung n: (n,1)↔(n,2)
+        pr, qr = site_index(n,1), site_index(n,2)
+        Ar = link_current_os(pr, qr, sites; J=J, phi=phi2)
+        Jr = inner(psi', Ar, psi)
+        JJr = inner(psi', bond_pair_JJ_mpo_local(p1,q1,pr,qr;phi1,phi2), psi)
+        push!(C, real(JJr - J1*Jr))
 
-        # Coupling and <J_b1>
-        c1    = bond_coupling(b1.s1, b1.s2; J_perp=J, J_parallel=Jpar, phase=phase)
-        Jb1op = single_bond_current_mpo(b1.s1, b1.s2, sites; coupling=c1, to_cuda=to_cuda)
-        Jb1   = inner(psi', Jb1op, psi)
-
-        for b2 in lattice
-            # Skip if any site is shared
-            if b1.s1 == b2.s1 || b1.s1 == b2.s2 || b1.s2 == b2.s1 || b1.s2 == b2.s2
-                continue
-            end
-            # Ordering to avoid duplicates
-            if b2.s1 < b1.s1
-                continue
-            end
-
-            c2    = bond_coupling(b2.s1, b2.s2; J_perp=J, J_parallel=Jpar, phase=phase)
-            Jb2op = single_bond_current_mpo(b2.s1, b2.s2, sites; coupling=c2, to_cuda=to_cuda)
-            Jb2   = inner(psi', Jb2op, psi)
-
-            JJop  = bond_pair_JJ_mpo(b1, b2, sites; c1=c1, c2=c2, to_cuda=to_cuda)
-            JJ    = inner(psi', JJop, psi)
-
-            Cconn = real(JJ - Jb1*Jb2)
-            push!(out, (b1.s1, b1.s2, b2.s1, b2.s2, Cconn))
-        end
     end
-    return out
+    return C
 end
 
 
@@ -289,19 +198,14 @@ function run_scan(sites, chis; J, Jpar, U, sweeps, psi0)
 
         # Optional: correlator at χ = π
         if isapprox(χ, π; atol=1e-12)
-            lattice = build_lattice_bonds()
-            CC = connected_current_correlators(
-                    psi_ws, lattice, sites;
-                    J_perp=J, J_parallel=Jpar, phase=χ, to_cuda=true)
-
-            dfC = DataFrame(
-                b1_s1 = [c.b1_s1 for c in CC],
-                b1_s2 = [c.b1_s2 for c in CC],
-                b2_s1 = [c.b2_s1 for c in CC],
-                b2_s2 = [c.b2_s2 for c in CC],
-                Cconn = [c.value for c in CC],
-                )
-            CSV.write("bond_corr_chi_pi.csv", dfC)
+            C  = connected_rung_correlator_first(psi_ws, sites; J=J, phi1 = 0,phi2=0)
+            CSV.write("rung_corr_chi_pi.csv",
+                DataFrame(rung=1:length(C),
+                Cre=real.(C),
+                Cim=imag.(C),
+                Cabs=abs.(C))
+            )
+        end
 
         push!(rows, (
             chi    = Float64(χ),
