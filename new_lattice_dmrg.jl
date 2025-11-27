@@ -117,11 +117,11 @@ function matt_hamiltonian(sites, lattice, psi_0; N, J_perp, J_parallel, U, phase
     end
     H = MPO(os, sites)
     state  = [isodd(n) ? "0" : "1" for n in 1:N]
-    nsweeps = 10
+    nsweeps = 5
     maxdim = [1600]
-    mindim = [500]
+    mindim = [300]
     cutoff = [1E-6]
-    noise = [1E-6]
+    noise = [1E-5]
     # psi_ws = random_mps(sites, state)
     energy, psi_0 = dmrg(H, psi_0; nsweeps, mindim, maxdim, cutoff, noise)
     return energy, psi_0
@@ -262,10 +262,8 @@ function compute_total_chiral_current(psi, lattice, L, J_parallel, phase)
         end
     end
 
-    operator_sum /= 2(L-1)
-
     operator = MPO(operator_sum, siteinds(psi))
-    return real(inner(psi', operator, psi))
+    return real(inner(psi', operator, psi))/(2*(L-1))
 end
 
 function compute_average_rung_current(psi, lattice, L, J_perp)
@@ -297,7 +295,7 @@ function compute_average_rung_current(psi, lattice, L, J_perp)
         end
     end
 
-    return total/(2(L-1))
+    return total/(2L - 1)
 end
 # ──────────────────────────────────────────────────────────────────────────────
 # Sweeps & run_scan (kept coherent with the helpers above)
@@ -333,9 +331,9 @@ function run_scan(lattice::Vector{LatticeBond},
 
     N = 2*L
     sites = siteinds("Boson", N; dim=num_levels, conserve_qns=true)
-
+    J_ratio = J_parallel / J_perp
     # half-filling product state matched to interleaved indexing: 1→"0", 2→"1", ...
-    state  = [isodd(n) ? "0" : "1" for n in 1:N]
+    state  = [iseven(n) ? "0" : "1" for n in 1:N]
     
 
     rows = NamedTuple[]
@@ -355,9 +353,10 @@ function run_scan(lattice::Vector{LatticeBond},
 
         # 4) Optional: rung current correlator at χ ≈ π
         if isapprox(χ, Base.MathConstants.pi; atol=1e-8)
+        # if isapprox(χ, 0; atol=1e-8)
             # C = connected_rung_correlator_first(psi_ws, sites; J_perp=J_perp, Jpar=J_parallel, phase=χ)
             C = compute_rung_current_correlations(psi_ws, L, J_perp)/J_perp^2
-            CSV.write("rung_corr_chi_pi.csv",
+            CSV.write("rung_corr_chi=$(χ)_J=$(J_ratio)_J_negative.csv",
                 DataFrame(
                     rung = 1:length(C),
                     Cre  = C,
@@ -383,13 +382,13 @@ end
 # ──────────────────────────────────────────────────────────────────────────────
 # Example main (keep your own parameter values as before)
 # ──────────────────────────────────────────────────────────────────────────────
-L = 30
-num_levels = 4
+L = 60
+num_levels = 5
 J_perp = -1
 J_parallel = -0.5
 J_ratio = J_parallel/J_perp
 U = 25
-N= 2*L
+N= L
 
 lattice = create_lattice(L)
 chis    = range(0, stop=Base.MathConstants.pi, length=11)
@@ -412,6 +411,6 @@ rows = run_scan(lattice, L, num_levels, chis; J_perp=J_perp, J_parallel=J_parall
 # )
 
 df   = DataFrame(rows)
-fname = "ladder_many_particle_scan_J=$(J_ratio)_L=$(L)_n=$(N).csv"
+fname = "ladder_many_particle_scan_J=$(J_ratio)_L=$(L)_n=$(N)_J_negative_num_level=$(num_levels).csv"
 CSV.write(fname, df)
 println("Wrote $fname")

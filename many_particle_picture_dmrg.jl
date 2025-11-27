@@ -6,12 +6,12 @@ using CUDA
 CUDA.allowscalar(false)
 
 # --- params ---
-L      = 10
+L      = 8
 rho      = 0.5                      # half filling like the paper
 N      = Int(round(rho*2L))         # total bosons
 
-Nmax   = 3                        # paper used ≥4–5
-J, Jpar, U = 1.0, 1, 25        # match paper examples
+Nmax   = 4                        # paper used ≥4–5
+J, Jpar, U = 1.0, 0.5, 25        # match paper examples
 J_ratio = Jpar/J;
 sites  = siteinds("Boson", 2*L; dim=Nmax+1, conserve_qns=true)
 
@@ -33,7 +33,7 @@ rows = Vector{NamedTuple}()
 
 site_index(j,m) = (m-1)*L + j  # map (rung j, leg m∈{1,2}) -> 1..2L
 
-function build_H(sites; χ, J=1.0, Jpar=0.5, U=0.0)
+function build_H(sites; χ, J, Jpar, U)
     os = OpSum()
     # legs with Peierls phases
     for j in 1:L-1
@@ -109,13 +109,11 @@ end
 
 function half_filled_state()
     state = fill("0", 2L)
-    for i in 1:N
-        state[i] = "1"            # ensure total N; respects QN conservation
-    end
+    state  = [isodd(n) ? "0" : "1" for n in 1:2L]
     return state
 end
 
-psi0 = random_mps(sites, half_filled_state())
+
 
 function link_current_os(sites, p, q; J)
     os = OpSum()
@@ -178,13 +176,13 @@ function connected_rung_correlator_first(psi, sites; J)
     return C
 end
 
-function run_scan(sites, chis; J, Jpar, U, sweeps, psi0)
+function run_scan(sites, chis; J, Jpar, U, sweeps)
     
     rows = NamedTuple[]
-
+    J_ratio = J/Jpar
     for χ in chis
         # psi_ws = random_mps(sites, half_filled_state())
-        psi_ws = psi0   # GPU warm-start
+        psi_ws = random_mps(sites, half_filled_state())
         # Build H on CPU, then move to GPU
         H_cpu = build_H(sites; χ=χ, J=J, Jpar=Jpar, U=U)
         H_gpu = H_cpu
@@ -202,7 +200,7 @@ function run_scan(sites, chis; J, Jpar, U, sweeps, psi0)
         # Optional: correlator at χ = π
         if isapprox(χ, Base.MathConstants.pi; atol=1e-12)
             C  = connected_rung_correlator_first(psi_c, sites; J)
-            CSV.write("rung_corr_chi_pi.csv",
+            CSV.write("rung_corr_chi_pi_J=$(J_ratio).csv",
                 DataFrame(rung=1:length(C),
                 Cre=real.(C),
                 Cim=imag.(C),
@@ -222,7 +220,7 @@ function run_scan(sites, chis; J, Jpar, U, sweeps, psi0)
     return rows
 end
 
-rows = run_scan(sites, chis; J=J, Jpar=Jpar, U=U, sweeps=sweeps, psi0=psi0)
+rows = run_scan(sites, chis; J=J, Jpar=Jpar, U=U, sweeps=sweeps)
 
 df   = DataFrame(rows)  # ← multiple rows as intended
 fname = "ladder_many_particle_scan_J=$(J_ratio)_L=$(L)_n=$(N).csv"
