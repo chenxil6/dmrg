@@ -6,11 +6,11 @@ using CUDA
 CUDA.allowscalar(false)
 
 # --- params ---
-L      = 60
+L      = 10
 rho      = 0.5                      # half filling like the paper
 N      = Int(round(rho*2L))         # total bosons
 
-Nmax   = 4                        # paper used ≥4–5
+Nmax   = 3                        # paper used ≥4–5
 J, Jpar, U = 1.0, 0.5, 25        # match paper examples
 J_ratio = Jpar/J;
 sites  = siteinds("Boson", 2*L; dim=Nmax+1, conserve_qns=true)
@@ -18,10 +18,10 @@ sites  = siteinds("Boson", 2*L; dim=Nmax+1, conserve_qns=true)
 nsweeps = 5
 sweeps  = Sweeps(nsweeps)
 
-setmaxdim!(sweeps, 500)
-# setmindim!(sweeps, 500)
-setcutoff!(sweeps, 1e-12)
-setnoise!(sweeps,  1e-6) # <- crucial for growth
+setmaxdim!(sweeps, 1600)
+setmindim!(sweeps, 500)
+setcutoff!(sweeps, 1e-8)
+setnoise!(sweeps,  1e-5) # <- crucial for growth
 # nsweeps = 12
 # sweeps  = Sweeps(nsweeps)
 # setmaxdim!(sweeps, 100, 200, 400, 800, 1200, 1600, 2000, 2400, 2400, 2400, 2400, 2400)
@@ -111,8 +111,6 @@ function half_filled_state()
     return state
 end
 
-
-
 function link_current_os(sites, p, q; J)
     os = OpSum()
     os += -1im*J, "Adag", p, "A", q
@@ -162,7 +160,7 @@ function connected_rung_correlator_first(psi, sites; J)
         Je     = inner(psi', Ae, psi)
         JJe    = inner(psi', bond_pair_JJ_mpo_local(sites, p1, q1, pe, qe; J=J), psi)
         push!(C, real(JJe - J1*Je))/(J^2)
-        
+
         # vertical: (j+1,1) ↔ (j+1,2)
         po, qo = site_index(j+1,1), site_index(j+1,2)
         Ao     = link_current_os(sites, po, qo; J = J)
@@ -177,7 +175,7 @@ end
 function run_scan(sites, chis; J, Jpar, U, sweeps)
     
     rows = NamedTuple[]
-    J_ratio = J/Jpar
+    J_ratio = Jpar/J
     for χ in chis
         # psi_ws = random_mps(sites, half_filled_state())
         psi_ws = random_mps(sites, half_filled_state())
@@ -196,9 +194,11 @@ function run_scan(sites, chis; J, Jpar, U, sweeps)
         Jr = avg_rung_current_gpu(psi_b, sites; J=J)
 
         # Optional: correlator at χ = π
-        if isapprox(χ, Base.MathConstants.pi; atol=1e-12)
+        # if isapprox(χ, Base.MathConstants.pi; atol=1e-12)
+        if isapprox(χ, 0; atol=1e-12)
             C  = connected_rung_correlator_first(psi_c, sites; J)
-            CSV.write("rung_corr_chi_pi_J=$(J_ratio)_many_particle_file.csv",
+            # CSV.write("rung_corr_chi_pi_J=$(J_ratio)_many_particle_file.csv",
+            CSV.write("rung_corr_chi_0_J=$(J_ratio)_many_particle_file.csv",
                 DataFrame(rung=1:length(C),
                 Cre=real.(C),
                 Cim=imag.(C),
