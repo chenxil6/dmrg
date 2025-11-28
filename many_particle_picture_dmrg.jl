@@ -6,7 +6,7 @@ using CUDA
 CUDA.allowscalar(false)
 
 # --- params ---
-L      = 8
+L      = 60
 rho      = 0.5                      # half filling like the paper
 N      = Int(round(rho*2L))         # total bosons
 
