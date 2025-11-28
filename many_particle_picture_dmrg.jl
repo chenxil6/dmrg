@@ -15,7 +15,7 @@ J, Jpar, U = 1.0, 0.5, 25        # match paper examples
 J_ratio = Jpar/J;
 sites  = siteinds("Boson", 2*L; dim=Nmax+1, conserve_qns=true)
 
-nsweeps = 10
+nsweeps = 5
 sweeps  = Sweeps(nsweeps)
 
 setmaxdim!(sweeps, 500)
@@ -67,7 +67,6 @@ end
 
 function avg_rung_current_gpu(psi_gpu, sites; J)
     acc = 0.0
-    # vertical rungs
     for j in 1:L
         a, b = site_index(j,1), site_index(j,2)
         os = OpSum()
@@ -75,7 +74,6 @@ function avg_rung_current_gpu(psi_gpu, sites; J)
         os += +1im * J, "Adag", b, "A", a
         acc += abs(inner(psi_gpu', MPO(os, sites), psi_gpu))
     end
-    # diagonals
     for j in 1:(L-1)
         a2, b = site_index(j+1,1), site_index(j,2)
         os = OpSum()
@@ -200,7 +198,7 @@ function run_scan(sites, chis; J, Jpar, U, sweeps)
         # Optional: correlator at χ = π
         if isapprox(χ, Base.MathConstants.pi; atol=1e-12)
             C  = connected_rung_correlator_first(psi_c, sites; J)
-            CSV.write("rung_corr_chi_pi_J=$(J_ratio).csv",
+            CSV.write("rung_corr_chi_pi_J=$(J_ratio)_many_particle_file.csv",
                 DataFrame(rung=1:length(C),
                 Cre=real.(C),
                 Cim=imag.(C),

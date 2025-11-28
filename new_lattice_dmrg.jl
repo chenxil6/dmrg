@@ -271,16 +271,10 @@ function compute_average_rung_current(psi, lattice, L, J_perp)
     sites = siteinds(psi)
 
     for b in lattice
-        # Identify rung bonds where s2 - s1 is odd
-        if isodd(b.s2 - b.s1)
-
             # Construct the current operator for this bond
             operator_sum = OpSum()
-
+            
             multiplier = 1
-            if iseven(b.s1)
-                multiplier = -1
-            end
             
             # i switched adag and a here by accident and now things are weird so check results again
             operator_sum += -im*multiplier*J_perp, "adag", b.s1, "a", b.s2
@@ -292,7 +286,6 @@ function compute_average_rung_current(psi, lattice, L, J_perp)
             # Compute the expectation value and accumulate its absolute value
 
             total += abs(real(inner(psi', operator, psi)))
-        end
     end
 
     return total/(2L - 1)
@@ -382,12 +375,12 @@ end
 # ──────────────────────────────────────────────────────────────────────────────
 # Example main (keep your own parameter values as before)
 # ──────────────────────────────────────────────────────────────────────────────
-L = 60
+L = 15
 num_levels = 5
 J_perp = -1
 J_parallel = -0.5
 J_ratio = J_parallel/J_perp
-U = 25
+U = 25  
 N= L
 
 lattice = create_lattice(L)
