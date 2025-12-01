@@ -18,10 +18,10 @@ sites  = siteinds("Boson", 2*L; dim=Nmax+1, conserve_qns=true)
 nsweeps = 5
 sweeps  = Sweeps(nsweeps)
 
-setmaxdim!(sweeps, 1600)
-setmindim!(sweeps, 500)
+setmaxdim!(sweeps, 500)
+setmindim!(sweeps, 200)
 setcutoff!(sweeps, 1e-8)
-setnoise!(sweeps,  1e-5) # <- crucial for growth
+setnoise!(sweeps,  1e-9) # <- crucial for growth
 # nsweeps = 12
 # sweeps  = Sweeps(nsweeps)
 # setmaxdim!(sweeps, 100, 200, 400, 800, 1200, 1600, 2000, 2400, 2400, 2400, 2400, 2400)
@@ -75,7 +75,7 @@ function avg_rung_current_gpu(psi_gpu, sites; J)
         acc += abs(inner(psi_gpu', MPO(os, sites), psi_gpu))
     end
     for j in 1:(L-1)
-        a2, b = site_index(j+1,1), site_index(j,2)
+        a2, b = site_index(j,1), site_index(j+1,2)
         os = OpSum()
         os += -1im * J, "Adag", a2, "A", b
         os += +1im * J, "Adag", b,  "A", a2
@@ -85,8 +85,9 @@ function avg_rung_current_gpu(psi_gpu, sites; J)
 end
 
 function chiral_current_gpu(psi_gpu, sites; χ, Jpar)
-    os_total = OpSum()
+    acc = 0.0
     for j in 1:L-1
+        os_total = OpSum()
         i, ip1 = site_index(j,1), site_index(j+1,1)
         k, kp1 = site_index(j,2), site_index(j+1,2)
 
@@ -94,15 +95,13 @@ function chiral_current_gpu(psi_gpu, sites; χ, Jpar)
         os_total += -1im*Jpar*exp(-1im*χ), "Adag", i,   "A", ip1
         os_total += +1im*Jpar*exp(+1im*χ), "Adag", ip1, "A", i
         # - j_{j,2}^||
-        os_total += +1im*Jpar*exp(+1im*χ), "Adag", k,   "A", kp1
-        os_total += -1im*Jpar*exp(-1im*χ), "Adag", kp1, "A", k
+        os_total -= -1im*Jpar*exp(+1im*χ), "Adag", k,   "A", kp1
+        os_total -= +1im*Jpar*exp(-1im*χ), "Adag", kp1, "A", k
+        A_gpu = MPO(os_total, sites)
+        acc += inner(psi_gpu', A_gpu, psi_gpu)
     end
 
-    A_gpu = MPO(os_total, sites)
-    # Either:
-    # val = inner(psi_gpu', A_gpu, psi_gpu)
-    val = inner(psi_gpu', A_gpu, psi_gpu)
-    return val / (2*(L-1))
+    return acc / (2*(L-1))
 end
 
 function half_filled_state()
@@ -176,9 +175,10 @@ function run_scan(sites, chis; J, Jpar, U, sweeps)
     
     rows = NamedTuple[]
     J_ratio = Jpar/J
+    psi_ws = random_mps(sites, half_filled_state())
     for χ in chis
         # psi_ws = random_mps(sites, half_filled_state())
-        psi_ws = random_mps(sites, half_filled_state())
+        
         # Build H on CPU, then move to GPU
         H_cpu = build_H(sites; χ=χ, J=J, Jpar=Jpar, U=U)
         H_gpu = H_cpu
