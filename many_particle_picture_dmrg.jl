@@ -1,16 +1,16 @@
 using ITensors
 using ITensorMPS  
 using CSV, DataFrames
-
+using Dates
 using CUDA
 CUDA.allowscalar(false)
 
 # --- params ---
-L      = 10
+L      = 30
 rho      = 0.5                      # half filling like the paper
 N      = Int(round(rho*2L))         # total bosons
 
-Nmax   = 3                        # paper used ≥4–5
+Nmax   = 5                        # paper used ≥4–5
 J, Jpar, U = 1.0, 0.5, 25        # match paper examples
 J_ratio = Jpar/J;
 sites  = siteinds("Boson", 2*L; dim=Nmax+1, conserve_qns=true)
@@ -51,7 +51,7 @@ function build_H(sites; χ, J, Jpar, U)
         os += -J, "Adag", b, "A", a
     end
     for j in 1:L-1
-        a,b = site_index(j+1,1), site_index(j,2)
+        a,b = site_index(j,1), site_index(j+1,2)
         os += -J, "Adag", a, "A", b
         os += -J, "Adag", b, "A", a
     end
@@ -172,12 +172,12 @@ function connected_rung_correlator_first(psi, sites; J)
 end
 
 function run_scan(sites, chis; J, Jpar, U, sweeps)
-    
+    stamp = Dates.format(now(), "yyyymmdd-HHMMSS")   # local time; use now(UTC) for UTC
     rows = NamedTuple[]
     J_ratio = Jpar/J
-    psi_ws = random_mps(sites, half_filled_state())
+    # psi_ws = random_mps(sites, half_filled_state())
     for χ in chis
-        # psi_ws = random_mps(sites, half_filled_state())
+        psi_ws = random_mps(sites, half_filled_state())
         
         # Build H on CPU, then move to GPU
         H_cpu = build_H(sites; χ=χ, J=J, Jpar=Jpar, U=U)
@@ -194,11 +194,11 @@ function run_scan(sites, chis; J, Jpar, U, sweeps)
         Jr = avg_rung_current_gpu(psi_b, sites; J=J)
 
         # Optional: correlator at χ = π
-        # if isapprox(χ, Base.MathConstants.pi; atol=1e-12)
-        if isapprox(χ, 0; atol=1e-12)
+        if isapprox(χ, Base.MathConstants.pi; atol=1e-12)
+        # if isapprox(χ, 0; atol=1e-12)
             C  = connected_rung_correlator_first(psi_c, sites; J)
-            # CSV.write("rung_corr_chi_pi_J=$(J_ratio)_many_particle_file.csv",
-            CSV.write("rung_corr_chi_0_J=$(J_ratio)_many_particle_file.csv",
+            CSV.write("rung_corr_chi_pi_J=$(J_ratio)_L=$(L)_n=$(N)_$(stamp).csv",
+            # CSV.write("rung_corr_chi_0_J=$(J_ratio)_L=$(L)_n=$(N)_$(stamp).csv",
                 DataFrame(rung=1:length(C),
                 Cre=real.(C),
                 Cim=imag.(C),
@@ -219,8 +219,8 @@ function run_scan(sites, chis; J, Jpar, U, sweeps)
 end
 
 rows = run_scan(sites, chis; J=J, Jpar=Jpar, U=U, sweeps=sweeps)
-
+stamp = Dates.format(now(), "yyyymmdd-HHMMSS")
 df   = DataFrame(rows)  # ← multiple rows as intended
-fname = "ladder_many_particle_scan_J=$(J_ratio)_L=$(L)_n=$(N).csv"
+fname = "ladder_many_particle_scan_J=$(J_ratio)_L=$(L)_n=$(N)_$(stamp).csv"
 CSV.write(fname, df)
 println("Wrote $fname")
