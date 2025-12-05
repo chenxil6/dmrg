@@ -6,27 +6,27 @@ using CUDA
 CUDA.allowscalar(false)
 
 # --- params ---
-L      = 8
+L      = 60
 rho      = 0.5                      # half filling like the paper
 N      = Int(round(rho*2L))         # total bosons
 
-Nmax   = 4                        # paper used ≥4–5
+Nmax   = 3                        # paper used ≥4–5
 J, Jpar, U = 1.0, 0.5, 25        # match paper examples
 J_ratio = Jpar/J;
 sites  = siteinds("Boson", 2*L; dim=Nmax+1, conserve_qns=true)
 
-nsweeps = 10
+nsweeps = 5
 sweeps  = Sweeps(nsweeps)
 
-setmaxdim!(sweeps, 500)
-# setmindim!(sweeps, 500)
-setcutoff!(sweeps, 1e-12)
-setnoise!(sweeps,  1e-6) # <- crucial for growth
-# nsweeps = 12
-# sweeps  = Sweeps(nsweeps)
-# setmaxdim!(sweeps, 100, 200, 400, 800, 1200, 1600, 2000, 2400, 2400, 2400, 2400, 2400)
-# setcutoff!(sweeps, 1e-8)
-# setnoise!(sweeps, 1e-6, 3e-7, 1e-7, 3e-8, 1e-8, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+#setmaxdim!(sweeps, 800)
+#setmindim!(sweeps, 300)
+#setcutoff!(sweeps, 1e-7)
+#setnoise!(sweeps,  1e-12) # <- crucial for growth
+nsweeps = 5
+sweeps  = Sweeps(nsweeps)
+setmaxdim!(sweeps, 100, 200, 300, 400, 500)
+setcutoff!(sweeps, 1e-8)
+setnoise!(sweeps, 1e-5, 3e-6, 1e-7, 1e-8, 1e-9)
 
 chis = range(0, stop=Base.MathConstants.pi, length=21)
 rows = Vector{NamedTuple}()
@@ -179,7 +179,7 @@ end
 function run_scan(sites, chis; J, Jpar, U, sweeps)
     
     rows = NamedTuple[]
-    J_ratio = J/Jpar
+    J_ratio = Jpar/J
     for χ in chis
         # psi_ws = random_mps(sites, half_filled_state())
         psi_ws = random_mps(sites, half_filled_state())
@@ -196,11 +196,19 @@ function run_scan(sites, chis; J, Jpar, U, sweeps)
         # Measurements (GPU MPOs)
         Jc = chiral_current_gpu(psi_a, sites; χ=χ, Jpar=Jpar)
         Jr = avg_rung_current_gpu(psi_b, sites; J=J)
-
+	if isapprox(χ, 0; atol=1e-12)
+            C  = connected_rung_correlator_first(psi_c, sites; J)
+            CSV.write("rung_corr_chi_zero_J=$(J_ratio)_L=30.csv",
+                DataFrame(rung=1:length(C),
+                Cre=real.(C),
+                Cim=imag.(C),
+                Cabs=abs.(C))
+            )
+	end    
         # Optional: correlator at χ = π
         if isapprox(χ, Base.MathConstants.pi; atol=1e-12)
             C  = connected_rung_correlator_first(psi_c, sites; J)
-            CSV.write("rung_corr_chi_pi_J=$(J_ratio).csv",
+            CSV.write("rung_corr_chi_pi_J=$(J_ratio)_L=30.csv",
                 DataFrame(rung=1:length(C),
                 Cre=real.(C),
                 Cim=imag.(C),
