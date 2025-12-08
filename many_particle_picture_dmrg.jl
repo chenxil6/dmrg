@@ -10,25 +10,25 @@ L      = 30
 rho      = 0.5                      # half filling like the paper
 N      = Int(round(rho*2L))         # total bosons
 
-Nmax   = 5                        # paper used ≥4–5
-J, Jpar, U = 1.0, 0.5, 25        # match paper examples
+Nmax   = 4                        # paper used ≥4–5
+J, Jpar, U = 1.0, 0.5, 20        # match paper examples
 J_ratio = Jpar/J;
 sites  = siteinds("Boson", 2*L; dim=Nmax+1, conserve_qns=true)
 
 nsweeps = 5
 sweeps  = Sweeps(nsweeps)
 
-setmaxdim!(sweeps, 500)
-setmindim!(sweeps, 200)
+setmaxdim!(sweeps, 200,250,300,400,500)
+#setmindim!(sweeps, 200)
 setcutoff!(sweeps, 1e-8)
-setnoise!(sweeps,  1e-9) # <- crucial for growth
+setnoise!(sweeps,  1e-5, 1e-6, 1e-7, 1e-8,1e-9) # <- crucial for growth
 # nsweeps = 12
 # sweeps  = Sweeps(nsweeps)
 # setmaxdim!(sweeps, 100, 200, 400, 800, 1200, 1600, 2000, 2400, 2400, 2400, 2400, 2400)
 # setcutoff!(sweeps, 1e-8)
 # setnoise!(sweeps, 1e-6, 3e-7, 1e-7, 3e-8, 1e-8, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
 
-chis = range(0, stop=Base.MathConstants.pi, length=21)
+chis = range(0, stop=Base.MathConstants.pi, length=11)
 rows = Vector{NamedTuple}()
 
 site_index(j,m) = (m-1)*L + j  # map (rung j, leg m∈{1,2}) -> 1..2L
@@ -87,17 +87,20 @@ end
 function chiral_current_gpu(psi_gpu, sites; χ, Jpar)
     acc = 0.0
     for j in 1:L-1
-        os_total = OpSum()
+        os1 = OpSum()
         i, ip1 = site_index(j,1), site_index(j+1,1)
         k, kp1 = site_index(j,2), site_index(j+1,2)
 
         # + j_{j,1}^||
-        os_total += -1im*Jpar*exp(-1im*χ), "Adag", i,   "A", ip1
-        os_total += +1im*Jpar*exp(+1im*χ), "Adag", ip1, "A", i
+        os1 += -1im*Jpar*exp(-1im*χ), "Adag", i,   "A", ip1
+        os1 += +1im*Jpar*exp(+1im*χ), "Adag", ip1, "A", i
         # - j_{j,2}^||
-        os_total -= -1im*Jpar*exp(+1im*χ), "Adag", k,   "A", kp1
-        os_total -= +1im*Jpar*exp(-1im*χ), "Adag", kp1, "A", k
-        A_gpu = MPO(os_total, sites)
+	os2 = OpSum()
+        os2 += -1im*Jpar*exp(+1im*χ), "Adag", k,   "A", kp1
+        os2 += +1im*Jpar*exp(-1im*χ), "Adag", kp1, "A", k
+	os = OpSum()
+	os = os1 + os2
+        A_gpu = MPO(os, sites)
         acc += inner(psi_gpu', A_gpu, psi_gpu)
     end
 
