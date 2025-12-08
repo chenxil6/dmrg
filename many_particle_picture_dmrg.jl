@@ -11,7 +11,7 @@ rho      = 0.5                      # half filling like the paper
 N      = Int(round(rho*2L))         # total bosons
 
 Nmax   = 4                        # paper used ≥4–5
-J, Jpar, U = 1.0, 0.5, 20        # match paper examples
+J, Jpar, U = 1.0, 0.5, 25        # match paper examples
 J_ratio = Jpar/J;
 sites  = siteinds("Boson", 2*L; dim=Nmax+1, conserve_qns=true)
 
@@ -28,7 +28,7 @@ setnoise!(sweeps,  1e-5, 1e-6, 1e-7, 1e-8,1e-9) # <- crucial for growth
 # setcutoff!(sweeps, 1e-8)
 # setnoise!(sweeps, 1e-6, 3e-7, 1e-7, 3e-8, 1e-8, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
 
-chis = range(0, stop=Base.MathConstants.pi, length=11)
+chis = range(0, stop=Base.MathConstants.pi, length=21)
 rows = Vector{NamedTuple}()
 
 site_index(j,m) = (m-1)*L + j  # map (rung j, leg m∈{1,2}) -> 1..2L
@@ -51,7 +51,7 @@ function build_H(sites; χ, J, Jpar, U)
         os += -J, "Adag", b, "A", a
     end
     for j in 1:L-1
-        a,b = site_index(j,1), site_index(j+1,2)
+        a,b = site_index(j+1,1), site_index(j,2)
         os += -J, "Adag", a, "A", b
         os += -J, "Adag", b, "A", a
     end
@@ -75,7 +75,7 @@ function avg_rung_current_gpu(psi_gpu, sites; J)
         acc += abs(inner(psi_gpu', MPO(os, sites), psi_gpu))
     end
     for j in 1:(L-1)
-        a2, b = site_index(j,1), site_index(j+1,2)
+        a2, b = site_index(j+1,1), site_index(j,2)
         os = OpSum()
         os += -1im * J, "Adag", a2, "A", b
         os += +1im * J, "Adag", b,  "A", a2
@@ -95,11 +95,11 @@ function chiral_current_gpu(psi_gpu, sites; χ, Jpar)
         os1 += -1im*Jpar*exp(-1im*χ), "Adag", i,   "A", ip1
         os1 += +1im*Jpar*exp(+1im*χ), "Adag", ip1, "A", i
         # - j_{j,2}^||
-	os2 = OpSum()
+	    os2 = OpSum()
         os2 += -1im*Jpar*exp(+1im*χ), "Adag", k,   "A", kp1
         os2 += +1im*Jpar*exp(-1im*χ), "Adag", kp1, "A", k
-	os = OpSum()
-	os = os1 + os2
+	    os = OpSum()
+	    os = os1 - os2
         A_gpu = MPO(os, sites)
         acc += inner(psi_gpu', A_gpu, psi_gpu)
     end
